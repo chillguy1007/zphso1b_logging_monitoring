@@ -122,7 +122,7 @@
             <h3>VOC Grade</h3>
             <div id="voc" class="value">-- <span class="unit">/ 3</span></div>
         </div>
-
+                
         <!-- Environmental -->
         <div class="card">
             <h3>Temperature</h3>
@@ -131,6 +131,16 @@
         <div class="card">
             <h3>Humidity</h3>
             <div id="humidity" class="value">-- <span class="unit">%RH</span></div>
+        </div>
+        
+        <!-- Satelite info -->
+        <div class="card">
+            <h3>Satellite Count</h3>
+            <div id="satelliteCount" class="value">-- <span class="unit">satellites</span></div>
+        </div>
+        <div class="card">
+            <h3>Speed</h3>
+            <div id="speed" class="value">-- <span class="unit">km/h</span></div>
         </div>
     </div>
 
@@ -305,7 +315,8 @@
             document.getElementById('voc').innerHTML = `${data['voc_grade']} <span class="unit">/ 3</span>`;
             document.getElementById('temperature').innerHTML = `${data['temperature']} <span class="unit">°C</span>`;
             document.getElementById('humidity').innerHTML = `${data['humidity']} <span class="unit">%RH</span>`;
-            
+            document.getElementById('satelliteCount').innerHTML = `${data.sats} <span class="unit">satellites</span>`;
+            document.getElementById('speed').innerHTML = `${data.speed} <span class="unit">km/h</span>`;
             // Update status colors based on thresholds
             updateCardStatus('pm25', data['pm2.5'], {good: 12, moderate: 35});
             updateCardStatus('co2', data['co2'], {good: 1000, moderate: 2000});

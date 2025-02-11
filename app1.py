@@ -95,6 +95,8 @@ historical_data = {
     'timestamps': [],
     'latitude': [],
     'longitude': [],
+    'sats': [],
+    'speed': [],
     'pm1': [],
     'pm25': [],
     'pm10': [],
@@ -148,6 +150,8 @@ def add_to_history(data):
     historical_data['timestamps'].append(timestamp)
     historical_data['latitude'].append(data['latitude'])
     historical_data['longitude'].append(data['longitude'])
+    historical_data['sats'].append(data['sats'])
+    historical_data['speed'].append(data['speed'])    
     historical_data['pm1'].append(data['pm1.0'])
     historical_data['pm25'].append(data['pm2.5'])
     historical_data['pm10'].append(data['pm10'])
@@ -198,18 +202,20 @@ def parse_sensor_data(response, ser_gps):
         print("Checksum verification failed")
         return None
     
-    lat, lon = get_gps_position(ser_gps)
+    lat, lon, sats, speed = get_gps_data(ser_gps)
 
     return {
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'latitude': lat,
         'longitude': lon,
+        'sats': sats,
+        'speed': speed,
         'pm1.0': (response[2] * 256 + response[3]),
         'pm2.5': (response[4] * 256 + response[5]),
         'pm10': (response[6] * 256 + response[7]),
         'co2': (response[8] * 256 + response[9]),
         'voc_grade': response[10],
-        'temperature': ((response[11] * 256 + response[12]) - 500) * 0.1,
+        'temperature': (((response[11] * 256 + response[12]) - 500) * 0.1)+5,
         'humidity': (response[13] * 256 + response[14]),
         'ch2o': (response[15] * 256 + response[16]) * 0.001,
         'co': (response[17] * 256 + response[18]) * 0.1,
@@ -226,7 +232,7 @@ def read_sensor():
         return
     
     command = bytearray([0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79])
-    
+    count = 0
     while True:
         try:
             ser.reset_input_buffer()
@@ -246,7 +252,8 @@ def read_sensor():
                     socketio.emit('sensor_update', data)
                     # if check_wifi_connection():
                     #     send_to_thingspeak(data)
-
+                    count+=1
+                    print(f"Count = {count}")
                     time.sleep(5)
             
         except Exception as e:
@@ -282,7 +289,7 @@ def get_gps_position(ser):
         tuple: (latitude, longitude) in decimal degrees, or (None, None) if invalid
     """
     try:
-        # attempts =0
+        #attempts =0
         # while attempts<5:
         while True:
             line = ser.readline().decode('ascii', errors='replace')
@@ -311,6 +318,51 @@ def get_gps_position(ser):
         print(f"GPS error: {e}")
         return None, None
 
+def get_gps_data(ser):
+   """
+   Get GPS position data from serial connection
+   
+   Args:
+       ser: Serial connection object
+   
+   Returns:
+       tuple: (latitude, longitude, satellites, speed) or (None, None, None, None) if invalid
+   """
+   try:
+       while True:
+           line = ser.readline().decode('ascii', errors='replace')
+           
+           # Get basic position and satellite info from GNGGA
+           if line.startswith('$GNGGA'):
+               gga_msg = pynmea2.parse(line)
+               if gga_msg.gps_qual > 0:  # Check if fix is valid
+                   lat = gga_msg.latitude
+                   lon = gga_msg.longitude
+                   sats = gga_msg.num_sats
+                   
+                   # Read next line to try to get speed from GNRMC
+                   line = ser.readline().decode('ascii', errors='replace')
+                   speed = 0
+                   
+                   if line.startswith('$GNRMC'):
+                       rmc_msg = pynmea2.parse(line)
+                       if rmc_msg.spd_over_grnd is not None:
+                           # Convert speed from knots to km/h
+                           speed = rmc_msg.spd_over_grnd * 1.852
+                           
+                   return lat, lon, sats, speed
+                   
+               return None, None, None, None
+               
+   except serial.SerialException as e:
+       print(f"Serial port error: {e}")
+       return None, None, None, None
+   except pynmea2.ParseError as e:
+       print(f"Parse error: {e}")
+       return None, None, None, None
+   except Exception as e:
+       print(f"Error: {e}")
+       return None, None, None, None
 
 @socketio.on('connect')
 def handle_connect():
